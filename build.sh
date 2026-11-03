@@ -1,6 +1,6 @@
 #!/bin/sh
-# Compile le plugin dans un conteneur .NET 10 (aucun SDK à installer) et prépare le dossier à copier
-# dans le répertoire plugins de Jellyfin, ainsi que le .zip installable.
+# Builds the plugin in a .NET 10 container (no SDK to install) and prepares the folder to copy
+# into Jellyfin's plugins directory, plus the installable .zip.
 set -e
 cd "$(dirname "$0")"
 VERSION=$(sed -n 's/.*"version": "\(.*\)".*/\1/p' meta.json)

@@ -2,20 +2,20 @@ using SkiaSharp;
 
 namespace Jellyfin.Plugin.LibraryCovers;
 
-/// <summary>Forme des vignettes du mur.</summary>
+/// <summary>Shape of the wall tiles.</summary>
 public enum TileStyle
 {
-    /// <summary>Affiches 2:3 recadrées (films, séries).</summary>
+    /// <summary>Cropped 2:3 posters (movies, shows).</summary>
     Poster,
 
-    /// <summary>Pochettes carrées (musique).</summary>
+    /// <summary>Square artwork (music).</summary>
     Square,
 
-    /// <summary>Logos de chaînes posés sur une carte, sans recadrage (TV en direct).</summary>
+    /// <summary>Channel logos laid on a card, never cropped (Live TV).</summary>
     Logo,
 }
 
-/// <summary>Ce qu'il faut dessiner pour une couverture.</summary>
+/// <summary>What to draw for one cover.</summary>
 public sealed class CoverSpec
 {
     public required string Title { get; init; }
@@ -26,15 +26,14 @@ public sealed class CoverSpec
 
     public TileStyle Style { get; init; }
 
-    /// <summary>Affiches candidates (chemins locaux), les mieux notées en premier.</summary>
+    /// <summary>Candidate images (local paths), best rated first.</summary>
     public required IReadOnlyList<string> ImagePaths { get; init; }
 
     public int Seed { get; init; }
 }
 
 /// <summary>
-/// Dessin SkiaSharp : mur d'affiches incliné, fondu bleu nuit, halo de couleur, titre Unbounded et compteur.
-/// Reprend le design des couvertures faites à la main le 03/11/2026.
+/// SkiaSharp drawing: tilted poster wall, midnight-blue fade, coloured glow, Unbounded title and item count.
 /// </summary>
 public static class CoverRenderer
 {
@@ -49,7 +48,7 @@ public static class CoverRenderer
     public static byte[] Render(CoverSpec spec, int quality = 90)
     {
         var info = new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-        using var surface = SKSurface.Create(info) ?? throw new InvalidOperationException("SKSurface.Create a échoué");
+        using var surface = SKSurface.Create(info) ?? throw new InvalidOperationException("SKSurface.Create failed");
         var canvas = surface.Canvas;
         canvas.Clear(Bg);
 
@@ -69,7 +68,7 @@ public static class CoverRenderer
             }
             else
             {
-                // Médiathèque vide : mur de cartes teintées plutôt qu'un fond uni.
+                // Empty library: a wall of tinted cards rather than a flat background.
                 DrawPlaceholderWall(canvas, rng, pw, ph, spec.Accent);
             }
 
@@ -96,7 +95,7 @@ public static class CoverRenderer
 
     private static List<SKImage> LoadTiles(IReadOnlyList<string> paths, Random rng, int tw, int th, bool keepOrder)
     {
-        // Mélange déterministe (sauf logos, déjà triés par numéro de chaîne) puis au plus 24 images décodables.
+        // Deterministic shuffle (except logos, already sorted by channel number), then at most 24 decodable images.
         var shuffled = keepOrder ? paths.Distinct().ToList() : paths.Distinct().OrderBy(_ => rng.Next()).ToList();
         var result = new List<SKImage>();
         foreach (var p in shuffled)
@@ -204,7 +203,7 @@ public static class CoverRenderer
         c.Restore();
     }
 
-    /// <summary>Logo clair (texte blanc…) → carte sombre ; logo foncé → carte claire. Logo opaque → plein cadre.</summary>
+    /// <summary>Light logo (white text…) → dark card; dark logo → light card. Opaque logo → full frame.</summary>
     private static (bool Light, bool Opaque) AnalyzeLogo(SKImage im)
     {
         using var pix = im.PeekPixels();
@@ -250,7 +249,7 @@ public static class CoverRenderer
             float off = (col % 2 == 0) ? 0 : ph / 2;
             for (int row = -3; row <= 2; row++)
             {
-                // Évite qu'une affiche touche son double.
+                // Keep a poster from touching its own duplicate.
                 var avoid = new HashSet<int>();
                 foreach (var key in new[] { (col - 1, row), (col, row - 1), (col - 1, row + 1), (col - 1, row - 1) })
                 {
@@ -286,7 +285,7 @@ public static class CoverRenderer
 
                 if (logoInfo is not null && !logoInfo[idx].Opaque)
                 {
-                    // Carte + logo entier centré avec marge.
+                    // Card + whole logo centred with a margin.
                     card.Color = logoInfo[idx].Light ? new SKColor(28, 38, 58) : new SKColor(236, 240, 246);
                     c.DrawRect(dst, card);
                     var inner = new SKRect(dst.Left + 34, dst.Top + 30, dst.Right - 34, dst.Bottom - 30);

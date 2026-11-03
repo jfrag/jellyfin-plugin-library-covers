@@ -15,14 +15,14 @@ public class LibraryCoversController : ControllerBase
         _coverService = coverService;
     }
 
-    /// <summary>Médiathèques, réglages effectifs et compteurs.</summary>
+    /// <summary>Libraries with their effective settings and item counts.</summary>
     [HttpGet("Libraries")]
     public ActionResult<List<LibraryCoverInfo>> GetLibraries()
     {
         return _coverService.GetLibraries();
     }
 
-    /// <summary>Aperçu JPEG (rien n'est enregistré).</summary>
+    /// <summary>JPEG preview (nothing is saved).</summary>
     [HttpGet("Preview/{libraryId}")]
     [Produces("image/jpeg")]
     public ActionResult GetPreview(
@@ -42,7 +42,7 @@ public class LibraryCoversController : ControllerBase
         return bytes is null ? NotFound() : File(bytes, "image/jpeg");
     }
 
-    /// <summary>Régénère tout (force=true) ou seulement ce qui a changé.</summary>
+    /// <summary>Regenerates every cover (force=true) or only the ones that changed.</summary>
     [HttpPost("Regenerate")]
     public async Task<ActionResult<List<string>>> Regenerate([FromQuery] bool force = true, [FromQuery] string? libraryId = null)
     {

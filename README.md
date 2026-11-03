@@ -1,58 +1,56 @@
-# Library Covers — plugin Jellyfin
+# Library Covers for Jellyfin
 
-Des couvertures de médiathèques générées à partir de vos propres affiches, avec le nombre de films, séries ou chaînes **toujours à jour**.
+Library cover images rendered from your own posters, with an item count that **stays up to date**.
 
-Chaque couverture (1920×1080) montre un mur d'affiches incliné, un fondu bleu nuit, un halo à la couleur de la médiathèque, son nom en grand et un compteur (« 209 films », « 22 séries », « 25 chaînes »…). Quand vous ajoutez ou supprimez des médias, la couverture concernée est refaite toute seule.
+Each cover (1920×1080) shows a tilted wall of your posters, a midnight-blue fade, a glow in the library's colour, the library name in large type and an item count ("209 movies", "22 shows", "25 channels"…). When you add or remove media, the affected cover is redrawn on its own.
 
-> *English: a Jellyfin 12 plugin that renders library cover images from your own posters (tilted poster wall, title, live item count) and keeps them up to date as items are added or removed. Live TV gets a channel-logo wall. The settings page and labels are in French.*
+## Features
 
-## Fonctionnalités
+- **Every library type**: movies, shows, collections, music, music videos, mixed. The count adapts: movies, shows (or episodes when there is a single show), collections, albums (or tracks).
+- **Live TV**: the Live TV view is not a library, so Jellyfin never generates an image for it. Library Covers gives it a cover too, with a wall of your channel logos and the number of channels.
+- **Empty libraries** get a wall of cards tinted in the library's colour instead of a blank background.
+- **Automatic updates**: the plugin listens for added and removed items, waits until things calm down (120 s by default, so a library scan triggers a single redraw), then regenerates only the covers whose count, title or colour changed.
+- **Scheduled task** "Refresh library covers", daily at 4 am, plus a check two minutes after Jellyfin starts.
+- **Settings page** (Dashboard → Plugins → Library Covers): per library, turn the cover on or off and set its title, colour and unit words, with an instant preview. A button regenerates everything.
+- **English or French labels**: the words drawn on the covers follow the server's display language by default, or can be forced in the settings.
 
-- **Toutes les médiathèques** : films, séries, collections, musique, clips, mixtes. Le compteur s'adapte : films, séries (ou épisodes s'il y a moins de 2 séries), collections, albums (ou pistes).
-- **TV en direct** : la vue « TV en direct » n'est pas une médiathèque, Jellyfin ne lui génère aucune image. Le plugin lui fait une couverture avec un mur des logos de vos chaînes et leur nombre.
-- **Médiathèques vides** : cartes teintées à la couleur de la médiathèque au lieu d'un fond vide.
-- **Mise à jour automatique** : le plugin écoute les ajouts et suppressions, attend que ça se calme (120 s par défaut) puis régénère uniquement les couvertures dont le compteur, le titre ou la couleur a changé.
-- **Tâche planifiée** « Mettre à jour les couvertures des médiathèques », tous les jours à 4 h, plus une vérification 2 minutes après le démarrage de Jellyfin.
-- **Page de réglages** (Tableau de bord → Extensions → Library Covers) : par médiathèque, activer ou non, titre, couleur, unité au singulier et au pluriel, avec un aperçu instantané. Bouton pour tout régénérer.
+## Install from the catalogue (recommended)
 
-## Installation depuis le catalogue (recommandé)
-
-1. Tableau de bord → **Extensions** → **Dépôts** → **+**
-2. Nom : `Library Covers`, URL :
+1. Dashboard → **Plugins** → **Repositories** → **+**
+2. Name: `Library Covers`, URL:
    ```
    https://raw.githubusercontent.com/jfrag/jellyfin-plugin-library-covers/main/manifest.json
    ```
-3. Dans le **Catalogue**, installez **Library Covers**, puis redémarrez Jellyfin.
+3. In the **Catalogue**, install **Library Covers**, then restart Jellyfin.
 
-Les nouvelles versions apparaîtront ensuite dans le catalogue comme pour les plugins officiels.
+New versions then show up in the catalogue like any official plugin.
 
-## Installation manuelle
+## Manual install
 
-Téléchargez `library-covers_<version>.zip` depuis les [releases](https://github.com/jfrag/jellyfin-plugin-library-covers/releases), décompressez-le dans un dossier `Library Covers_<version>` du répertoire `plugins` de Jellyfin (par ex. `/var/lib/jellyfin/plugins/`), donnez-le à l'utilisateur de Jellyfin, puis redémarrez.
+Download `library-covers_<version>.zip` from the [releases](https://github.com/jfrag/jellyfin-plugin-library-covers/releases), unzip it into a `Library Covers_<version>` folder inside Jellyfin's `plugins` directory (e.g. `/var/lib/jellyfin/plugins/`), make it owned by the Jellyfin user, and restart.
 
-## Compatibilité
+## Compatibility and caveats
 
 - Jellyfin **12.x** (targetAbi 12.0.0.0, .NET 10).
-- Les couvertures sont enregistrées comme image principale de chaque médiathèque : elles remplacent l'image existante. Pensez à sauvegarder vos images personnalisées si vous y tenez (dossier `root/default/<médiathèque>/` des données de Jellyfin).
-- Interface et libellés en français.
+- Covers are saved as each library's primary image and **replace the existing one**. Back up any custom library images you care about first (they live in `root/default/<library>/` in Jellyfin's data directory).
 
-## Compiler
+## Building
 
-Avec le SDK .NET 10 :
+With the .NET 10 SDK:
 
 ```sh
 dotnet build Jellyfin.Plugin.LibraryCovers/Jellyfin.Plugin.LibraryCovers.csproj -c Release
 ```
 
-Ou sans rien installer, avec Docker : `./build.sh` (produit `out/Library Covers_<version>/` et le `.zip`).
+Or with nothing but Docker: `./build.sh` (outputs `out/Library Covers_<version>/` and the `.zip`).
 
-## Publier une version
+## Releasing
 
-1. Mettez à jour `version` et `changelog` dans `meta.json` (et la version dans le `.csproj`).
-2. Poussez un tag identique : `git tag v1.2.0.0 && git push origin v1.2.0.0`.
+1. Update `version` and `changelog` in `meta.json`, and the version in the `.csproj`.
+2. Push a matching tag: `git tag v1.3.0.0 && git push origin v1.3.0.0`.
 
-Le workflow GitHub Actions compile le plugin, publie la release avec le `.zip` et ajoute la version dans `manifest.json`.
+The GitHub Actions workflow builds the plugin, publishes the release with the `.zip` and adds the version to `manifest.json`.
 
-## Licence
+## License
 
-Code sous licence [GPL-3.0](LICENSE). Polices embarquées : [Unbounded](https://github.com/googlefonts/unbounded) et [Noto Sans](https://github.com/notofonts/latin-greek-cyrillic), sous SIL Open Font License 1.1 (voir `Jellyfin.Plugin.LibraryCovers/Fonts/`).
+Code licensed under [GPL-3.0](LICENSE). Embedded fonts: [Unbounded](https://github.com/googlefonts/unbounded) and [Noto Sans](https://github.com/notofonts/latin-greek-cyrillic), under the SIL Open Font License 1.1 (see `Jellyfin.Plugin.LibraryCovers/Fonts/`).

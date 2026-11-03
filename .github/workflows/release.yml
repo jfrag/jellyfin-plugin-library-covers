@@ -1,5 +1,5 @@
-# Pousser un tag vX.Y.Z.W (identique à "version" dans meta.json) compile le plugin, publie la release
-# avec le .zip installable et ajoute la version dans manifest.json (le dépôt lu par le catalogue Jellyfin).
+# Pushing a vX.Y.Z.W tag (matching "version" in meta.json) builds the plugin, publishes a release with the
+# installable .zip and adds the version to manifest.json (the repository read by the Jellyfin catalogue).
 name: Release
 
 on:
@@ -19,22 +19,22 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Vérifier la version
+      - name: Check version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           META_VERSION=$(jq -r .version meta.json)
           if [ "$VERSION" != "$META_VERSION" ]; then
-            echo "::error::Le tag ($VERSION) ne correspond pas à meta.json ($META_VERSION)"
+            echo "::error::Tag ($VERSION) does not match meta.json ($META_VERSION)"
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Compiler
+      - name: Build
         run: >
           dotnet build Jellyfin.Plugin.LibraryCovers/Jellyfin.Plugin.LibraryCovers.csproj -c Release -nologo
           -p:Version=$VERSION -p:AssemblyVersion=$VERSION -p:FileVersion=$VERSION
 
-      - name: Empaqueter
+      - name: Package
         run: |
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           ZIP="library-covers_${VERSION}.zip"
@@ -48,7 +48,7 @@ jobs:
             echo "CHECKSUM=$(md5sum "dist/$ZIP" | cut -d' ' -f1)"
           } >> "$GITHUB_ENV"
 
-      - name: Publier la release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -56,7 +56,7 @@ jobs:
             --title "Library Covers $VERSION" \
             --notes "$(jq -r .changelog meta.json)"
 
-      - name: Mettre à jour manifest.json
+      - name: Update manifest.json
         run: |
           git fetch --depth=1 origin main
           git checkout -B main origin/main

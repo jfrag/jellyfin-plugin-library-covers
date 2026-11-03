@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <title>Library Covers</title>
@@ -12,6 +12,8 @@
         #LibraryCoversPage .lc-global { display: flex; flex-wrap: wrap; gap: 1em 2.5em; align-items: center; margin-bottom: 1.6em; }
         #LibraryCoversPage .lc-global label { display: flex; gap: .55em; align-items: center; cursor: pointer; }
         #LibraryCoversPage .lc-global input[type=number] { width: 6em; }
+        #LibraryCoversPage .lc-global select { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-radius: 6px; color: inherit; padding: .35em .5em; font: inherit; }
+        #LibraryCoversPage .lc-global select option { color: #000; }
         #LibraryCoversPage table { width: 100%; border-collapse: collapse; }
         #LibraryCoversPage th { text-align: left; font-weight: 600; font-size: .85em; opacity: .7; padding: .4em .5em; }
         #LibraryCoversPage td { padding: .35em .5em; border-top: 1px solid rgba(255,255,255,.08); vertical-align: middle; }
@@ -27,41 +29,42 @@
     </style>
     <div data-role="content">
         <div class="content-primary lc-wrap">
-            <h2 class="sectionTitle">Couvertures des médiathèques</h2>
+            <h2 class="sectionTitle">Library covers</h2>
             <p class="lc-intro">
-                Chaque couverture est un mur de vos affiches avec le titre et le nombre d'éléments.
-                Elle est refaite automatiquement quand ce nombre change (ajout ou suppression), quelques minutes après le dernier changement.
-                Laissez un champ vide pour garder la valeur par défaut.
+                Each cover is a wall of your own posters with the library title and its item count.
+                It is redrawn automatically when that count changes (items added or removed), a couple of minutes after the last change.
+                Leave a field empty to keep its default value.
             </p>
 
             <div class="lc-global">
-                <label><input type="checkbox" id="lcAutoUpdate"><span>Mise à jour automatique</span></label>
-                <label><input type="checkbox" id="lcShowCount"><span>Afficher le nombre d'éléments</span></label>
-                <label><span>Délai après le dernier changement (s)</span><input type="number" id="lcDebounce" min="10" max="3600" step="10" is="emby-input"></label>
+                <label><input type="checkbox" id="lcAutoUpdate"><span>Automatic updates</span></label>
+                <label><input type="checkbox" id="lcShowCount"><span>Show the item count</span></label>
+                <label><span>Delay after the last change (s)</span><input type="number" id="lcDebounce" min="10" max="3600" step="10" is="emby-input"></label>
+                <label><span>Cover language</span><select id="lcLanguage"><option value="auto">Server language</option><option value="en">English</option><option value="fr">Français</option></select></label>
             </div>
 
             <table>
                 <thead>
                 <tr>
-                    <th style="width:3em">Active</th>
-                    <th style="width:16%">Médiathèque</th>
-                    <th>Titre affiché</th>
-                    <th style="width:4em">Couleur</th>
-                    <th style="width:13%">Unité (1)</th>
-                    <th style="width:13%">Unité (plusieurs)</th>
+                    <th style="width:3em">On</th>
+                    <th style="width:16%">Library</th>
+                    <th>Title on cover</th>
+                    <th style="width:4em">Colour</th>
+                    <th style="width:13%">Unit (one)</th>
+                    <th style="width:13%">Unit (many)</th>
                     <th style="width:6em"></th>
                 </tr>
                 </thead>
-                <tbody id="lcRows"><tr><td colspan="7">Chargement…</td></tr></tbody>
+                <tbody id="lcRows"><tr><td colspan="7">Loading…</td></tr></tbody>
             </table>
 
             <div class="lc-preview" id="lcPreviewBox">
-                <img id="lcPreviewImg" alt="Aperçu de la couverture">
+                <img id="lcPreviewImg" alt="Cover preview">
             </div>
 
             <div class="lc-actions">
-                <button is="emby-button" type="button" class="raised button-submit block" id="lcSave"><span>Enregistrer</span></button>
-                <button is="emby-button" type="button" class="raised block" id="lcRegen"><span>Régénérer toutes les couvertures maintenant</span></button>
+                <button is="emby-button" type="button" class="raised button-submit block" id="lcSave"><span>Save</span></button>
+                <button is="emby-button" type="button" class="raised block" id="lcRegen"><span>Regenerate all covers now</span></button>
             </div>
             <div class="lc-status" id="lcStatus"></div>
         </div>
@@ -90,10 +93,10 @@
                         '<td><input type="color" class="lc-accent" value="' + esc(toHex(l.Accent)) + '" data-default="' + esc(toHex(l.DefaultAccent)) + '"></td>' +
                         '<td><input type="text" class="lc-sing" placeholder="' + esc(l.DefaultUnitSingular) + '" value="' + esc(l.UnitSingular === l.DefaultUnitSingular ? '' : l.UnitSingular) + '"></td>' +
                         '<td><input type="text" class="lc-plur" placeholder="' + esc(l.DefaultUnitPlural) + '" value="' + esc(l.UnitPlural === l.DefaultUnitPlural ? '' : l.UnitPlural) + '"></td>' +
-                        '<td><button type="button" class="lc-btn lc-prev">Aperçu</button></td>' +
+                        '<td><button type="button" class="lc-btn lc-prev">Preview</button></td>' +
                         '</tr>';
                 });
-                $('#lcRows').innerHTML = rows.join('') || '<tr><td colspan="7">Aucune médiathèque.</td></tr>';
+                $('#lcRows').innerHTML = rows.join('') || '<tr><td colspan="7">No library found.</td></tr>';
             }
 
             function readRow(tr) {
@@ -120,9 +123,10 @@
                     $('#lcAutoUpdate').checked = config.AutoUpdate !== false;
                     $('#lcShowCount').checked = config.ShowCount !== false;
                     $('#lcDebounce').value = config.DebounceSeconds || 120;
+                    $('#lcLanguage').value = config.Language || 'auto';
                     render();
                 }).catch(function (e) {
-                    status('Impossible de charger les médiathèques : ' + (e && (e.status || e.message) || e));
+                    status('Could not load the libraries: ' + (e && (e.status || e.message) || e));
                 }).finally(function () { loading(false); });
             }
 
@@ -132,22 +136,23 @@
                 config.AutoUpdate = $('#lcAutoUpdate').checked;
                 config.ShowCount = $('#lcShowCount').checked;
                 config.DebounceSeconds = parseInt($('#lcDebounce').value, 10) || 120;
+                config.Language = $('#lcLanguage').value || 'auto';
                 config.Libraries = Array.prototype.map.call(page.querySelectorAll('#lcRows tr[data-id]'), readRow);
                 ApiClient.updatePluginConfiguration(pluginId, config).then(function (r) {
-                    status('Réglages enregistrés. Les couvertures concernées seront refaites dans quelques secondes.');
+                    status('Settings saved. The affected covers will be redrawn in a few seconds.');
                     if (window.Dashboard && Dashboard.processPluginConfigurationUpdateResult) { Dashboard.processPluginConfigurationUpdateResult(r); }
                     setTimeout(load, 8000);
                 }).catch(function (e) {
-                    status('Échec de l\'enregistrement : ' + (e && (e.status || e.message) || e));
+                    status('Saving failed: ' + (e && (e.status || e.message) || e));
                 }).finally(function () { loading(false); });
             }
 
             function regen() {
                 loading(true);
-                status('Génération en cours…');
+                status('Generating…');
                 ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('LibraryCovers/Regenerate', { force: true }), dataType: 'json' })
                     .then(function (lines) { status((lines || []).join('\n')); load(); })
-                    .catch(function (e) { status('Échec : ' + (e && (e.status || e.message) || e)); })
+                    .catch(function (e) { status('Failed: ' + (e && (e.status || e.message) || e)); })
                     .finally(function () { loading(false); });
             }
 
@@ -159,18 +164,18 @@
                 if (row.UnitSingular) { params.unitSingular = row.UnitSingular; }
                 if (row.UnitPlural) { params.unitPlural = row.UnitPlural; }
                 var url = ApiClient.getUrl('LibraryCovers/Preview/' + row.LibraryId, params);
-                status('Préparation de l\'aperçu…');
+                status('Rendering preview…');
                 ApiClient.fetch({ url: url, type: 'GET' }).then(function (resp) {
-                    if (!resp || !resp.blob) { throw new Error('réponse vide'); }
+                    if (!resp || !resp.blob) { throw new Error('empty response'); }
                     return resp.blob();
                 }).then(function (blob) {
                     if (previewUrl) { URL.revokeObjectURL(previewUrl); }
                     previewUrl = URL.createObjectURL(blob);
                     $('#lcPreviewImg').src = previewUrl;
                     $('#lcPreviewBox').style.display = 'block';
-                    status('Aperçu (non enregistré) : ' + tr.querySelector('.lc-name').textContent);
+                    status('Preview (not saved): ' + tr.querySelector('.lc-name').textContent);
                 }).catch(function (e) {
-                    status('Aperçu impossible : ' + (e && (e.status || e.message) || e));
+                    status('Preview failed: ' + (e && (e.status || e.message) || e));
                 });
             }
 

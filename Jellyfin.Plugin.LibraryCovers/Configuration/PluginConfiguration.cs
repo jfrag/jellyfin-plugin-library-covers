@@ -4,16 +4,19 @@ namespace Jellyfin.Plugin.LibraryCovers.Configuration;
 
 public class PluginConfiguration : BasePluginConfiguration
 {
-    /// <summary>Régénère automatiquement une couverture quand le contenu de sa médiathèque change.</summary>
+    /// <summary>Regenerate a cover automatically when the content of its library changes.</summary>
     public bool AutoUpdate { get; set; } = true;
 
-    /// <summary>Délai d'attente après le dernier ajout/suppression avant de régénérer (évite de travailler pendant un scan).</summary>
+    /// <summary>Delay after the last added/removed item before regenerating (avoids working during a library scan).</summary>
     public int DebounceSeconds { get; set; } = 120;
 
-    /// <summary>Affiche le nombre d'éléments sous le titre.</summary>
+    /// <summary>Show the item count under the title.</summary>
     public bool ShowCount { get; set; } = true;
 
-    /// <summary>Réglages par médiathèque (vide = valeurs par défaut).</summary>
+    /// <summary>Language of the words drawn on the covers: "auto" (server display language), "en" or "fr".</summary>
+    public string Language { get; set; } = "auto";
+
+    /// <summary>Per-library settings (empty = defaults).</summary>
     public List<LibrarySettings> Libraries { get; set; } = new();
 }
 

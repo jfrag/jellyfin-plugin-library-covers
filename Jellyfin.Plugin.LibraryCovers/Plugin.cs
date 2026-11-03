@@ -7,8 +7,8 @@ using MediaBrowser.Model.Serialization;
 namespace Jellyfin.Plugin.LibraryCovers;
 
 /// <summary>
-/// Library Covers : génère les couvertures des médiathèques (mur d'affiches + titre + nombre d'éléments)
-/// et les tient à jour quand le contenu change.
+/// Library Covers: renders library cover images (poster wall + title + item count)
+/// and keeps them up to date when the library content changes.
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
@@ -25,7 +25,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override Guid Id => Guid.Parse("0ef768ea-c398-447f-aba3-6fdd97de7b02");
 
     public override string Description =>
-        "Couvertures de médiathèques générées à partir de vos affiches, avec le nombre de films/séries tenu à jour automatiquement.";
+        "Library cover images rendered from your own posters, with an item count that stays up to date.";
 
     public IEnumerable<PluginPageInfo> GetPages()
     {

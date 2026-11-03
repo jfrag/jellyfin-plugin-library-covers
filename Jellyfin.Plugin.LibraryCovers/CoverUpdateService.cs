@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.LibraryCovers;
 
 /// <summary>
-/// Écoute les ajouts/suppressions d'éléments et régénère les couvertures concernées une fois le calme revenu
-/// (anti-rebond : un scan qui ajoute 50 épisodes ne déclenche qu'une seule génération).
+/// Listens for added/removed items and regenerates the affected covers once things calm down
+/// (debounced: a scan that adds 50 episodes triggers a single regeneration).
 /// </summary>
 public sealed class CoverUpdateService : IHostedService, IDisposable
 {
@@ -43,7 +43,7 @@ public sealed class CoverUpdateService : IHostedService, IDisposable
             Plugin.Instance.ConfigurationChanged += OnConfigurationChanged;
         }
 
-        // Vérification au démarrage (rattrape ce qui a changé pendant que le serveur était arrêté).
+        // Startup check (catches up with changes made while the server was down).
         Schedule(null, TimeSpan.FromMinutes(2));
         return Task.CompletedTask;
     }
@@ -68,7 +68,7 @@ public sealed class CoverUpdateService : IHostedService, IDisposable
 
     private void OnConfigurationChanged(object? sender, BasePluginConfiguration e)
     {
-        // Nouveaux titres/couleurs : on applique rapidement.
+        // New titles/colours: apply them quickly.
         Schedule(null, TimeSpan.FromSeconds(5));
     }
 
@@ -92,7 +92,7 @@ public sealed class CoverUpdateService : IHostedService, IDisposable
         }
         catch
         {
-            // Élément déjà supprimé : on revérifiera toutes les médiathèques.
+            // Item already gone: re-check every library.
         }
 
         Schedule(ids is { Count: > 0 } ? ids : null, TimeSpan.FromSeconds(Math.Clamp(config.DebounceSeconds, 10, 3600)));
@@ -131,11 +131,11 @@ public sealed class CoverUpdateService : IHostedService, IDisposable
         try
         {
             var report = await _coverService.RefreshAsync(false, ids, null, CancellationToken.None).ConfigureAwait(false);
-            _logger.LogDebug("Library Covers - vérification : {Report}", string.Join(" ; ", report));
+            _logger.LogDebug("Library Covers - check: {Report}", string.Join(" ; ", report));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Library Covers - échec de la mise à jour automatique");
+            _logger.LogError(ex, "Library Covers - automatic update failed");
         }
     }
 }

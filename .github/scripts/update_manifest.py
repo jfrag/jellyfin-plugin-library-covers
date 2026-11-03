@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Ajoute (ou remplace) une version du plugin dans manifest.json, le dépôt lu par le catalogue Jellyfin.
+"""Adds (or replaces) a plugin version in manifest.json, the repository read by the Jellyfin catalogue.
 
-Usage : update_manifest.py MANIFEST META VERSION SOURCE_URL CHECKSUM TIMESTAMP
+Usage: update_manifest.py MANIFEST META VERSION SOURCE_URL CHECKSUM TIMESTAMP
 """
 import json
 import sys

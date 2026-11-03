@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.LibraryCovers.Configuration;
+using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.LiveTv;
@@ -15,7 +16,7 @@ using SortOrder = Jellyfin.Database.Implementations.Enums.SortOrder;
 
 namespace Jellyfin.Plugin.LibraryCovers;
 
-/// <summary>Réglages effectifs d'une médiathèque (renvoyés à la page de configuration).</summary>
+/// <summary>Effective settings of a library, as shown on the configuration page.</summary>
 public sealed class LibraryCoverInfo
 {
     public string Id { get; set; } = string.Empty;
@@ -47,7 +48,7 @@ public sealed class LibraryCoverInfo
     public string DefaultUnitPlural { get; set; } = string.Empty;
 }
 
-/// <summary>Valeurs ponctuelles pour un aperçu non enregistré.</summary>
+/// <summary>One-off values for an unsaved preview.</summary>
 public sealed class CoverOverrides
 {
     public string? Title { get; set; }
@@ -61,30 +62,40 @@ public sealed class CoverOverrides
 
 public class CoverService
 {
-    /// <summary>À incrémenter quand le dessin change : force la régénération de toutes les couvertures.</summary>
+    /// <summary>Bump when the drawing changes: forces every cover to be regenerated.</summary>
     private const int DesignVersion = 2;
 
-    private static readonly CultureInfo Fr = CultureInfo.GetCultureInfo("fr-FR");
+    /// <summary>Default colour (and optional French title or unit) for common library names.</summary>
+    private sealed record KnownLibrary(string Accent, string? FrenchTitle = null, string? Unit = null);
 
-    // Couleurs et libellés par défaut pour des noms de médiathèques courants ; les autres prennent une couleur de la palette.
-    private static readonly Dictionary<string, (string Accent, string? Title, string? Sing, string? Plur)> Known =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["Films"] = ("#5b8def", null, null, null),
-            ["Séries"] = ("#a78bfa", null, null, null),
-            ["Animes"] = ("#f472b6", null, null, null),
-            ["Disney"] = ("#38bdf8", null, null, null),
-            ["Films animes"] = ("#fb923c", null, null, null),
-            ["Films enfants"] = ("#4ade80", null, null, null),
-            ["Séries animes"] = ("#e879f9", null, null, null),
-            ["Séries enfants"] = ("#facc15", null, null, null),
-            ["Collections"] = ("#94a3b8", null, null, null),
-            ["BayaM"] = ("#fdba74", null, "épisode", "épisodes"),
-            ["Musiques"] = ("#22d3ee", null, null, null),
-            ["Enregistrements"] = ("#f87171", null, null, null),
-            ["Recorded Movies"] = ("#f87171", "Films enregistrés", null, null),
-            ["TV en direct"] = ("#2dd4bf", null, null, null),
-        };
+    private static readonly Dictionary<string, KnownLibrary> Known = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Movies"] = new("#5b8def"),
+        ["Films"] = new("#5b8def"),
+        ["Shows"] = new("#a78bfa"),
+        ["TV Shows"] = new("#a78bfa"),
+        ["Séries"] = new("#a78bfa"),
+        ["Anime"] = new("#f472b6"),
+        ["Animes"] = new("#f472b6"),
+        ["Disney"] = new("#38bdf8"),
+        ["Anime Movies"] = new("#fb923c"),
+        ["Films animes"] = new("#fb923c"),
+        ["Kids Movies"] = new("#4ade80"),
+        ["Films enfants"] = new("#4ade80"),
+        ["Anime Series"] = new("#e879f9"),
+        ["Séries animes"] = new("#e879f9"),
+        ["Kids Shows"] = new("#facc15"),
+        ["Séries enfants"] = new("#facc15"),
+        ["Collections"] = new("#94a3b8"),
+        ["BayaM"] = new("#fdba74", Unit: "episode"),
+        ["Music"] = new("#22d3ee"),
+        ["Musiques"] = new("#22d3ee"),
+        ["Recordings"] = new("#f87171"),
+        ["Enregistrements"] = new("#f87171"),
+        ["Recorded Movies"] = new("#f87171", FrenchTitle: "Films enregistrés"),
+        ["Live TV"] = new("#2dd4bf"),
+        ["TV en direct"] = new("#2dd4bf"),
+    };
 
     private static readonly string[] Palette =
     {
@@ -94,20 +105,27 @@ public class CoverService
     private readonly ILibraryManager _libraryManager;
     private readonly IProviderManager _providerManager;
     private readonly ILocalizationManager _localization;
+    private readonly IServerConfigurationManager _serverConfig;
     private readonly ILogger<CoverService> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
-    public CoverService(ILibraryManager libraryManager, IProviderManager providerManager, ILocalizationManager localization, ILogger<CoverService> logger)
+    public CoverService(
+        ILibraryManager libraryManager,
+        IProviderManager providerManager,
+        ILocalizationManager localization,
+        IServerConfigurationManager serverConfig,
+        ILogger<CoverService> logger)
     {
         _libraryManager = libraryManager;
         _providerManager = providerManager;
         _localization = localization;
+        _serverConfig = serverConfig;
         _logger = logger;
     }
 
     private static PluginConfiguration Config => Plugin.Instance?.Configuration ?? new PluginConfiguration();
 
-    /// <summary>Liste les médiathèques avec leurs réglages effectifs et leur compteur actuel.</summary>
+    /// <summary>Lists the libraries with their effective settings and current item count.</summary>
     public List<LibraryCoverInfo> GetLibraries()
     {
         var list = new List<LibraryCoverInfo>();
@@ -120,7 +138,7 @@ public class CoverService
         return list;
     }
 
-    /// <summary>Aperçu JPEG d'une couverture, sans rien enregistrer.</summary>
+    /// <summary>Renders a JPEG preview of a cover without saving anything.</summary>
     public byte[]? RenderPreview(string libraryId, CoverOverrides? overrides)
     {
         var lib = EnumerateLibraries().FirstOrDefault(l => SameId(l.Id, libraryId));
@@ -134,8 +152,8 @@ public class CoverService
     }
 
     /// <summary>
-    /// Régénère les couvertures. Sans <paramref name="force"/>, seules celles dont le titre, la couleur ou le compteur
-    /// ont changé depuis la dernière génération sont refaites.
+    /// Regenerates the covers. Without <paramref name="force"/>, only the covers whose title, colour or item count
+    /// changed since they were last generated are redrawn.
     /// </summary>
     public async Task<List<string>> RefreshAsync(bool force, IReadOnlyCollection<string>? onlyIds, IProgress<double>? progress, CancellationToken cancellationToken)
     {
@@ -156,14 +174,14 @@ public class CoverService
                     var plan = BuildPlan(lib.Folder, lib.Name, lib.CollectionType, null);
                     if (!plan.Info.Enabled)
                     {
-                        report.Add($"{lib.Name} : désactivée");
+                        report.Add($"{lib.Name}: disabled");
                         continue;
                     }
 
                     var signature = plan.Signature;
                     if (!force && state.TryGetValue(lib.Id, out var previous) && previous == signature)
                     {
-                        report.Add($"{lib.Name} : inchangée");
+                        report.Add($"{lib.Name}: unchanged");
                         continue;
                     }
 
@@ -176,7 +194,7 @@ public class CoverService
                     await lib.Folder.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, cancellationToken).ConfigureAwait(false);
                     state[lib.Id] = signature;
                     SaveState(state);
-                    var line = $"{lib.Name} : couverture régénérée ({plan.Info.Subtitle})";
+                    var line = $"{lib.Name}: cover regenerated ({plan.Info.Subtitle})";
                     report.Add(line);
                     _logger.LogInformation("Library Covers - {Line}", line);
                 }
@@ -186,8 +204,8 @@ public class CoverService
                 }
                 catch (Exception ex)
                 {
-                    report.Add($"{lib.Name} : erreur ({ex.Message})");
-                    _logger.LogError(ex, "Library Covers - échec pour {Library}", lib.Name);
+                    report.Add($"{lib.Name}: error ({ex.Message})");
+                    _logger.LogError(ex, "Library Covers - failed for {Library}", lib.Name);
                 }
                 finally
                 {
@@ -204,7 +222,7 @@ public class CoverService
         return report;
     }
 
-    /// <summary>Renvoie l'identifiant (format N) des médiathèques qui contiennent cet élément.</summary>
+    /// <summary>Returns the ids (N format) of the libraries that contain this item.</summary>
     public IReadOnlyList<string> GetLibraryIdsFor(BaseItem item)
     {
         return _libraryManager.GetCollectionFolders(item).Select(f => f.Id.ToString("N")).ToList();
@@ -229,7 +247,7 @@ public class CoverService
             yield return (guid.ToString("N"), vf.Name ?? folder.Name, ct, folder);
         }
 
-        // « TV en direct » n'est pas une médiathèque mais une vue nommée : même mécanisme que LiveTvManager.
+        // Live TV is not a library but a named view: same lookup as LiveTvManager.
         var liveTv = GetLiveTvView();
         if (liveTv is not null)
         {
@@ -256,7 +274,7 @@ public class CoverService
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Library Covers - vue TV en direct introuvable");
+            _logger.LogDebug(ex, "Library Covers - Live TV view not found");
             return null;
         }
     }
@@ -266,66 +284,67 @@ public class CoverService
     private Plan BuildPlan(BaseItem folder, string name, string collectionType, CoverOverrides? overrides)
     {
         var cfg = Config;
+        var language = Labels.ResolveLanguage(cfg.Language, _serverConfig.Configuration.UICulture);
         var id = folder.Id.ToString("N");
         var settings = cfg.Libraries.FirstOrDefault(l => SameId(l.LibraryId, id));
         var normalizedName = name.Normalize(NormalizationForm.FormC);
         Known.TryGetValue(normalizedName, out var known);
 
-        // Ce que l'on compte et ce que l'on affiche selon le type de médiathèque.
+        // What to count and which images to show, by library type.
         BaseItemKind[] countKinds;
         BaseItemKind[] imageKinds;
         BaseItemKind[] fallbackImageKinds = Array.Empty<BaseItemKind>();
-        string sing, plur;
+        string unit;
         var style = TileStyle.Poster;
         switch (collectionType)
         {
             case "livetv":
                 countKinds = new[] { BaseItemKind.TvChannel };
                 imageKinds = countKinds;
-                (sing, plur) = ("chaîne", "chaînes");
+                unit = "channel";
                 style = TileStyle.Logo;
                 break;
             case "movies":
                 countKinds = new[] { BaseItemKind.Movie };
                 imageKinds = countKinds;
-                (sing, plur) = ("film", "films");
+                unit = "movie";
                 break;
             case "tvshows":
                 countKinds = new[] { BaseItemKind.Series };
                 imageKinds = countKinds;
                 fallbackImageKinds = new[] { BaseItemKind.Season };
-                (sing, plur) = ("série", "séries");
+                unit = "series";
                 break;
             case "boxsets":
                 countKinds = new[] { BaseItemKind.BoxSet };
                 imageKinds = countKinds;
-                (sing, plur) = ("collection", "collections");
+                unit = "collection";
                 break;
             case "music":
                 countKinds = new[] { BaseItemKind.MusicAlbum };
                 imageKinds = countKinds;
                 fallbackImageKinds = new[] { BaseItemKind.Audio };
-                (sing, plur) = ("album", "albums");
+                unit = "album";
                 style = TileStyle.Square;
                 break;
             case "musicvideos":
                 countKinds = new[] { BaseItemKind.MusicVideo };
                 imageKinds = countKinds;
-                (sing, plur) = ("clip", "clips");
+                unit = "musicvideo";
                 break;
             default:
                 countKinds = new[] { BaseItemKind.Movie, BaseItemKind.Series };
                 imageKinds = countKinds;
                 fallbackImageKinds = new[] { BaseItemKind.Season };
-                (sing, plur) = ("titre", "titres");
+                unit = "title";
                 break;
         }
 
-        // Les chaînes ne sont rattachées à aucun dossier : requête globale.
+        // Channels do not belong to any folder: query them globally.
         List<BaseItem>? parents = collectionType == "livetv" ? null : new List<BaseItem> { folder };
         int count = Count(parents, countKinds);
 
-        // Une seule série (ex. One Pace) ou un seul album : on compte plutôt les épisodes / pistes.
+        // A single show or a single album: count its episodes or tracks instead.
         if (count < 2)
         {
             if (collectionType is "tvshows" or "mixed")
@@ -334,7 +353,7 @@ public class CoverService
                 if (episodes > count)
                 {
                     count = episodes;
-                    (sing, plur) = ("épisode", "épisodes");
+                    unit = "episode";
                 }
             }
             else if (collectionType == "music")
@@ -343,15 +362,14 @@ public class CoverService
                 if (tracks > count)
                 {
                     count = tracks;
-                    (sing, plur) = ("piste", "pistes");
+                    unit = "track";
                 }
             }
         }
 
-        var defaultTitle = known.Title ?? name;
-        var defaultAccent = known.Accent ?? Palette[StableHash(normalizedName) % Palette.Length];
-        var defaultSing = known.Sing ?? sing;
-        var defaultPlur = known.Plur ?? plur;
+        var (sing, plur) = Labels.Unit(known?.Unit ?? unit, language);
+        var defaultTitle = language == "fr" && known?.FrenchTitle is not null ? known.FrenchTitle : name;
+        var defaultAccent = known?.Accent ?? Palette[StableHash(normalizedName) % Palette.Length];
 
         string Pick(string? overrideValue, string? saved, string fallback) =>
             !string.IsNullOrWhiteSpace(overrideValue) ? overrideValue.Trim()
@@ -360,8 +378,8 @@ public class CoverService
 
         var title = Pick(overrides?.Title, settings?.Title, defaultTitle);
         var accent = Pick(overrides?.Accent, settings?.Accent, defaultAccent);
-        var unitS = Pick(overrides?.UnitSingular, settings?.UnitSingular, defaultSing);
-        var unitP = Pick(overrides?.UnitPlural, settings?.UnitPlural, defaultPlur);
+        var unitS = Pick(overrides?.UnitSingular, settings?.UnitSingular, sing);
+        var unitP = Pick(overrides?.UnitPlural, settings?.UnitPlural, plur);
         if (!SKColor.TryParse(accent, out var accentColor))
         {
             accent = defaultAccent;
@@ -369,7 +387,7 @@ public class CoverService
         }
 
         var subtitle = cfg.ShowCount && count > 0
-            ? $"{count.ToString("N0", Fr)} {(count > 1 ? unitP : unitS)}"
+            ? $"{count.ToString("N0", Labels.Culture(language))} {(count > 1 ? unitP : unitS)}"
             : string.Empty;
 
         var images = GetImagePaths(parents, imageKinds);
@@ -392,8 +410,8 @@ public class CoverService
             Subtitle = subtitle,
             DefaultTitle = defaultTitle,
             DefaultAccent = defaultAccent,
-            DefaultUnitSingular = defaultSing,
-            DefaultUnitPlural = defaultPlur,
+            DefaultUnitSingular = sing,
+            DefaultUnitPlural = plur,
         };
 
         var spec = new CoverSpec
@@ -445,7 +463,7 @@ public class CoverService
         var items = Query(query, parents);
         if (kinds.Contains(BaseItemKind.TvChannel))
         {
-            // Logos dans l'ordre des chaînes (TF1, France 2…) plutôt que par note.
+            // Channel logos in channel-number order rather than by rating.
             items = items.OrderBy(i => ChannelNumber(i)).ToList();
         }
 
@@ -472,14 +490,14 @@ public class CoverService
 
         if (info.Path.Contains("://", StringComparison.Ordinal))
         {
-            // Logo de chaîne encore distant (URL du M3U) : Jellyfin le télécharge et le garde en cache.
+            // Channel logo still remote (URL from the M3U tuner): let Jellyfin download and cache it.
             try
             {
                 info = _libraryManager.ConvertImageToLocal(item, info, 0, true).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Library Covers - image distante non récupérée pour {Item}", item.Name);
+                _logger.LogDebug(ex, "Library Covers - could not fetch remote image for {Item}", item.Name);
                 return null;
             }
         }
@@ -533,7 +551,7 @@ public class CoverService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Library Covers - état illisible, toutes les couvertures seront refaites");
+            _logger.LogWarning(ex, "Library Covers - unreadable state file, every cover will be regenerated");
         }
 
         return new Dictionary<string, string>();
@@ -547,7 +565,7 @@ public class CoverService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Library Covers - impossible d'écrire l'état");
+            _logger.LogWarning(ex, "Library Covers - could not write the state file");
         }
     }
 }

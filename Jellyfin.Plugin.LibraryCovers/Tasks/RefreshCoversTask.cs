@@ -11,11 +11,11 @@ public sealed class RefreshCoversTask : IScheduledTask
         _coverService = coverService;
     }
 
-    public string Name => "Mettre à jour les couvertures des médiathèques";
+    public string Name => "Refresh library covers";
 
     public string Key => "LibraryCoversRefresh";
 
-    public string Description => "Régénère les couvertures dont le nombre d'éléments, le titre ou la couleur a changé.";
+    public string Description => "Regenerates the library covers whose item count, title or colour changed.";
 
     public string Category => "Library Covers";
 
