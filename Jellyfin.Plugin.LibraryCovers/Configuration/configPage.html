@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Library Covers</title>
+</head>
+<body>
+<div id="LibraryCoversPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+    <style>
+        #LibraryCoversPage .lc-wrap { max-width: 1100px; }
+        #LibraryCoversPage .lc-intro { opacity: .8; margin: .2em 0 1.4em; line-height: 1.5; }
+        #LibraryCoversPage .lc-global { display: flex; flex-wrap: wrap; gap: 1em 2.5em; align-items: center; margin-bottom: 1.6em; }
+        #LibraryCoversPage .lc-global label { display: flex; gap: .55em; align-items: center; cursor: pointer; }
+        #LibraryCoversPage .lc-global input[type=number] { width: 6em; }
+        #LibraryCoversPage table { width: 100%; border-collapse: collapse; }
+        #LibraryCoversPage th { text-align: left; font-weight: 600; font-size: .85em; opacity: .7; padding: .4em .5em; }
+        #LibraryCoversPage td { padding: .35em .5em; border-top: 1px solid rgba(255,255,255,.08); vertical-align: middle; }
+        #LibraryCoversPage td input[type=text] { width: 100%; box-sizing: border-box; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); border-radius: 6px; color: inherit; padding: .45em .6em; font: inherit; }
+        #LibraryCoversPage td input[type=color] { width: 2.6em; height: 2em; border: none; background: none; padding: 0; cursor: pointer; }
+        #LibraryCoversPage .lc-name { font-weight: 600; }
+        #LibraryCoversPage .lc-sub { font-size: .8em; opacity: .6; }
+        #LibraryCoversPage .lc-btn { padding: .4em .8em; border-radius: 6px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.06); color: inherit; cursor: pointer; }
+        #LibraryCoversPage .lc-actions { display: flex; flex-wrap: wrap; gap: .8em; margin: 1.6em 0; }
+        #LibraryCoversPage .lc-preview { margin-top: 1em; display: none; }
+        #LibraryCoversPage .lc-preview img { width: 100%; max-width: 960px; border-radius: 10px; display: block; }
+        #LibraryCoversPage .lc-status { white-space: pre-line; opacity: .85; margin-top: .8em; font-size: .9em; }
+    </style>
+    <div data-role="content">
+        <div class="content-primary lc-wrap">
+            <h2 class="sectionTitle">Couvertures des médiathèques</h2>
+            <p class="lc-intro">
+                Chaque couverture est un mur de vos affiches avec le titre et le nombre d'éléments.
+                Elle est refaite automatiquement quand ce nombre change (ajout ou suppression), quelques minutes après le dernier changement.
+                Laissez un champ vide pour garder la valeur par défaut.
+            </p>
+
+            <div class="lc-global">
+                <label><input type="checkbox" id="lcAutoUpdate"><span>Mise à jour automatique</span></label>
+                <label><input type="checkbox" id="lcShowCount"><span>Afficher le nombre d'éléments</span></label>
+                <label><span>Délai après le dernier changement (s)</span><input type="number" id="lcDebounce" min="10" max="3600" step="10" is="emby-input"></label>
+            </div>
+
+            <table>
+                <thead>
+                <tr>
+                    <th style="width:3em">Active</th>
+                    <th style="width:16%">Médiathèque</th>
+                    <th>Titre affiché</th>
+                    <th style="width:4em">Couleur</th>
+                    <th style="width:13%">Unité (1)</th>
+                    <th style="width:13%">Unité (plusieurs)</th>
+                    <th style="width:6em"></th>
+                </tr>
+                </thead>
+                <tbody id="lcRows"><tr><td colspan="7">Chargement…</td></tr></tbody>
+            </table>
+
+            <div class="lc-preview" id="lcPreviewBox">
+                <img id="lcPreviewImg" alt="Aperçu de la couverture">
+            </div>
+
+            <div class="lc-actions">
+                <button is="emby-button" type="button" class="raised button-submit block" id="lcSave"><span>Enregistrer</span></button>
+                <button is="emby-button" type="button" class="raised block" id="lcRegen"><span>Régénérer toutes les couvertures maintenant</span></button>
+            </div>
+            <div class="lc-status" id="lcStatus"></div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            var pluginId = '0ef768ea-c398-447f-aba3-6fdd97de7b02';
+            var page = document.querySelector('#LibraryCoversPage');
+            var libs = [];
+            var config = null;
+            var previewUrl = null;
+
+            function $(sel) { return page.querySelector(sel); }
+            function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+            function status(msg) { $('#lcStatus').textContent = msg || ''; }
+            function loading(on) { if (window.Dashboard) { on ? Dashboard.showLoadingMsg() : Dashboard.hideLoadingMsg(); } }
+            function toHex(c) { return /^#[0-9a-f]{6}$/i.test(c || '') ? c : '#5b8def'; }
+
+            function render() {
+                var rows = libs.map(function (l) {
+                    return '<tr data-id="' + esc(l.Id) + '">' +
+                        '<td><input type="checkbox" class="lc-enabled"' + (l.Enabled ? ' checked' : '') + '></td>' +
+                        '<td><div class="lc-name">' + esc(l.Name) + '</div><div class="lc-sub">' + esc(l.Subtitle || '—') + '</div></td>' +
+                        '<td><input type="text" class="lc-title" placeholder="' + esc(l.DefaultTitle) + '" value="' + esc(l.Title === l.DefaultTitle ? '' : l.Title) + '"></td>' +
+                        '<td><input type="color" class="lc-accent" value="' + esc(toHex(l.Accent)) + '" data-default="' + esc(toHex(l.DefaultAccent)) + '"></td>' +
+                        '<td><input type="text" class="lc-sing" placeholder="' + esc(l.DefaultUnitSingular) + '" value="' + esc(l.UnitSingular === l.DefaultUnitSingular ? '' : l.UnitSingular) + '"></td>' +
+                        '<td><input type="text" class="lc-plur" placeholder="' + esc(l.DefaultUnitPlural) + '" value="' + esc(l.UnitPlural === l.DefaultUnitPlural ? '' : l.UnitPlural) + '"></td>' +
+                        '<td><button type="button" class="lc-btn lc-prev">Aperçu</button></td>' +
+                        '</tr>';
+                });
+                $('#lcRows').innerHTML = rows.join('') || '<tr><td colspan="7">Aucune médiathèque.</td></tr>';
+            }
+
+            function readRow(tr) {
+                var accent = tr.querySelector('.lc-accent');
+                return {
+                    LibraryId: tr.getAttribute('data-id'),
+                    Enabled: tr.querySelector('.lc-enabled').checked,
+                    Title: tr.querySelector('.lc-title').value.trim() || null,
+                    Accent: accent.value.toLowerCase() === accent.getAttribute('data-default').toLowerCase() ? null : accent.value,
+                    UnitSingular: tr.querySelector('.lc-sing').value.trim() || null,
+                    UnitPlural: tr.querySelector('.lc-plur').value.trim() || null
+                };
+            }
+
+            function load() {
+                loading(true);
+                status('');
+                Promise.all([
+                    ApiClient.getPluginConfiguration(pluginId),
+                    ApiClient.getJSON(ApiClient.getUrl('LibraryCovers/Libraries'))
+                ]).then(function (res) {
+                    config = res[0];
+                    libs = res[1] || [];
+                    $('#lcAutoUpdate').checked = config.AutoUpdate !== false;
+                    $('#lcShowCount').checked = config.ShowCount !== false;
+                    $('#lcDebounce').value = config.DebounceSeconds || 120;
+                    render();
+                }).catch(function (e) {
+                    status('Impossible de charger les médiathèques : ' + (e && (e.status || e.message) || e));
+                }).finally(function () { loading(false); });
+            }
+
+            function save() {
+                if (!config) { return; }
+                loading(true);
+                config.AutoUpdate = $('#lcAutoUpdate').checked;
+                config.ShowCount = $('#lcShowCount').checked;
+                config.DebounceSeconds = parseInt($('#lcDebounce').value, 10) || 120;
+                config.Libraries = Array.prototype.map.call(page.querySelectorAll('#lcRows tr[data-id]'), readRow);
+                ApiClient.updatePluginConfiguration(pluginId, config).then(function (r) {
+                    status('Réglages enregistrés. Les couvertures concernées seront refaites dans quelques secondes.');
+                    if (window.Dashboard && Dashboard.processPluginConfigurationUpdateResult) { Dashboard.processPluginConfigurationUpdateResult(r); }
+                    setTimeout(load, 8000);
+                }).catch(function (e) {
+                    status('Échec de l\'enregistrement : ' + (e && (e.status || e.message) || e));
+                }).finally(function () { loading(false); });
+            }
+
+            function regen() {
+                loading(true);
+                status('Génération en cours…');
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('LibraryCovers/Regenerate', { force: true }), dataType: 'json' })
+                    .then(function (lines) { status((lines || []).join('\n')); load(); })
+                    .catch(function (e) { status('Échec : ' + (e && (e.status || e.message) || e)); })
+                    .finally(function () { loading(false); });
+            }
+
+            function preview(tr) {
+                var row = readRow(tr);
+                var params = {};
+                if (row.Title) { params.title = row.Title; }
+                params.accent = tr.querySelector('.lc-accent').value;
+                if (row.UnitSingular) { params.unitSingular = row.UnitSingular; }
+                if (row.UnitPlural) { params.unitPlural = row.UnitPlural; }
+                var url = ApiClient.getUrl('LibraryCovers/Preview/' + row.LibraryId, params);
+                status('Préparation de l\'aperçu…');
+                ApiClient.fetch({ url: url, type: 'GET' }).then(function (resp) {
+                    if (!resp || !resp.blob) { throw new Error('réponse vide'); }
+                    return resp.blob();
+                }).then(function (blob) {
+                    if (previewUrl) { URL.revokeObjectURL(previewUrl); }
+                    previewUrl = URL.createObjectURL(blob);
+                    $('#lcPreviewImg').src = previewUrl;
+                    $('#lcPreviewBox').style.display = 'block';
+                    status('Aperçu (non enregistré) : ' + tr.querySelector('.lc-name').textContent);
+                }).catch(function (e) {
+                    status('Aperçu impossible : ' + (e && (e.status || e.message) || e));
+                });
+            }
+
+            page.addEventListener('pageshow', load);
+            $('#lcSave').addEventListener('click', save);
+            $('#lcRegen').addEventListener('click', regen);
+            $('#lcRows').addEventListener('click', function (e) {
+                var btn = e.target.closest('.lc-prev');
+                if (btn) { preview(btn.closest('tr')); }
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>

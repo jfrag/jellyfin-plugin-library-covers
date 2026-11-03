@@ -1,0 +1,70 @@
+# Pousser un tag vX.Y.Z.W (identique à "version" dans meta.json) compile le plugin, publie la release
+# avec le .zip installable et ajoute la version dans manifest.json (le dépôt lu par le catalogue Jellyfin).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Vérifier la version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          META_VERSION=$(jq -r .version meta.json)
+          if [ "$VERSION" != "$META_VERSION" ]; then
+            echo "::error::Le tag ($VERSION) ne correspond pas à meta.json ($META_VERSION)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Compiler
+        run: >
+          dotnet build Jellyfin.Plugin.LibraryCovers/Jellyfin.Plugin.LibraryCovers.csproj -c Release -nologo
+          -p:Version=$VERSION -p:AssemblyVersion=$VERSION -p:FileVersion=$VERSION
+
+      - name: Empaqueter
+        run: |
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          ZIP="library-covers_${VERSION}.zip"
+          mkdir -p dist/pkg
+          cp Jellyfin.Plugin.LibraryCovers/bin/Release/net10.0/Jellyfin.Plugin.LibraryCovers.dll dist/pkg/
+          jq --arg ts "$TIMESTAMP" '.timestamp = $ts' meta.json > dist/pkg/meta.json
+          (cd dist/pkg && zip -X -q "../$ZIP" Jellyfin.Plugin.LibraryCovers.dll meta.json)
+          {
+            echo "ZIP=$ZIP"
+            echo "TIMESTAMP=$TIMESTAMP"
+            echo "CHECKSUM=$(md5sum "dist/$ZIP" | cut -d' ' -f1)"
+          } >> "$GITHUB_ENV"
+
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "dist/$ZIP" \
+            --title "Library Covers $VERSION" \
+            --notes "$(jq -r .changelog meta.json)"
+
+      - name: Mettre à jour manifest.json
+        run: |
+          git fetch --depth=1 origin main
+          git checkout -B main origin/main
+          python3 .github/scripts/update_manifest.py manifest.json meta.json "$VERSION" \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${ZIP}" \
+            "$CHECKSUM" "$TIMESTAMP"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "manifest: Library Covers $VERSION"
+          git push origin main
