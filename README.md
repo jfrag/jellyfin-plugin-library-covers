@@ -46,10 +46,9 @@ Or with nothing but Docker: `./build.sh` (outputs `out/Library Covers_<version>/
 
 ## Releasing
 
-1. Update `version` and `changelog` in `meta.json`, and the version in the `.csproj`.
-2. Push a matching tag: `git tag v1.3.0.0 && git push origin v1.3.0.0`.
+Update `version` and `changelog` in `meta.json` (and the version in the `.csproj`), then push to `main`.
 
-The GitHub Actions workflow builds the plugin, publishes the release with the `.zip` and adds the version to `manifest.json`.
+The GitHub Actions workflow builds the plugin, creates the `vX.Y.Z.W` tag and a release with the `.zip`, and adds the version to `manifest.json`. It does nothing if that version has already been released.
 
 ## License
 
