@@ -95,6 +95,12 @@ public class CoverService
         ["Recorded Movies"] = new("#f87171", FrenchTitle: "Films enregistrés"),
         ["Live TV"] = new("#2dd4bf"),
         ["TV en direct"] = new("#2dd4bf"),
+        ["Games"] = new("#a3e635"),
+        ["Retro Games"] = new("#a3e635"),
+        ["Jeux"] = new("#a3e635"),
+        ["Jeux rétro"] = new("#a3e635"),
+        ["Books"] = new("#fbbf24"),
+        ["Livres"] = new("#fbbf24"),
     };
 
     private static readonly string[] Palette =
@@ -327,6 +333,12 @@ public class CoverService
                 unit = "album";
                 style = TileStyle.Square;
                 break;
+            case "books":
+                // Books libraries also hold retro games when JellyEmu is installed (it tags each ROM "JellyEmu").
+                countKinds = new[] { BaseItemKind.Book };
+                imageKinds = countKinds;
+                unit = "book";
+                break;
             case "musicvideos":
                 countKinds = new[] { BaseItemKind.MusicVideo };
                 imageKinds = countKinds;
@@ -343,6 +355,11 @@ public class CoverService
         // Channels do not belong to any folder: query them globally.
         List<BaseItem>? parents = collectionType == "livetv" ? null : new List<BaseItem> { folder };
         int count = Count(parents, countKinds);
+
+        if (collectionType == "books" && count > 0 && CountTagged(parents, countKinds, "JellyEmu") * 2 > count)
+        {
+            unit = "game";
+        }
 
         // A single show or a single album: count its episodes or tracks instead.
         if (count < 2)
@@ -440,6 +457,18 @@ public class CoverService
             IncludeItemTypes = kinds,
             Recursive = true,
             IsVirtualItem = false,
+        };
+        return Query(query, parents).Count;
+    }
+
+    private int CountTagged(List<BaseItem>? parents, BaseItemKind[] kinds, string tag)
+    {
+        var query = new InternalItemsQuery
+        {
+            IncludeItemTypes = kinds,
+            Recursive = true,
+            IsVirtualItem = false,
+            Tags = new[] { tag },
         };
         return Query(query, parents).Count;
     }

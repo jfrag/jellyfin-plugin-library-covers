@@ -6,7 +6,8 @@ Each cover (1920×1080) shows a tilted wall of your posters, a midnight-blue fad
 
 ## Features
 
-- **Every library type**: movies, shows, collections, music, music videos, mixed. The count adapts: movies, shows (or episodes when there is a single show), collections, albums (or tracks).
+- **Every library type**: movies, shows, collections, music, music videos, books, mixed. The count adapts: movies, shows (or episodes when there is a single show), collections, albums (or tracks), books.
+- **Retro games**: a Books library of ROMs managed by [JellyEmu](https://github.com/Jellyfin-PG/JellyEmu) is counted in games, with a wall of box art.
 - **Live TV**: the Live TV view is not a library, so Jellyfin never generates an image for it. Library Covers gives it a cover too, with a wall of your channel logos and the number of channels.
 - **Empty libraries** get a wall of cards tinted in the library's colour instead of a blank background.
 - **Automatic updates**: the plugin listens for added and removed items, waits until things calm down (120 s by default, so a library scan triggers a single redraw), then regenerates only the covers whose count, title or colour changed.

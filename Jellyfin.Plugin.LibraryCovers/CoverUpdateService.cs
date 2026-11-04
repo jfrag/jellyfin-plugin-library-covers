@@ -15,7 +15,7 @@ public sealed class CoverUpdateService : IHostedService, IDisposable
     private static readonly HashSet<BaseItemKind> Relevant = new()
     {
         BaseItemKind.Movie, BaseItemKind.Series, BaseItemKind.Season, BaseItemKind.Episode, BaseItemKind.BoxSet,
-        BaseItemKind.MusicAlbum, BaseItemKind.Audio, BaseItemKind.MusicVideo, BaseItemKind.Video, BaseItemKind.TvChannel,
+        BaseItemKind.MusicAlbum, BaseItemKind.Audio, BaseItemKind.MusicVideo, BaseItemKind.Video, BaseItemKind.TvChannel, BaseItemKind.Book,
     };
 
     private readonly ILibraryManager _libraryManager;

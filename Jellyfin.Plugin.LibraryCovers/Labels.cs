@@ -17,6 +17,8 @@ internal static class Labels
             ["title"] = ("title", "titles", "titre", "titres"),
             ["episode"] = ("episode", "episodes", "épisode", "épisodes"),
             ["track"] = ("track", "tracks", "piste", "pistes"),
+            ["book"] = ("book", "books", "livre", "livres"),
+            ["game"] = ("game", "games", "jeu", "jeux"),
         };
 
     /// <summary>
